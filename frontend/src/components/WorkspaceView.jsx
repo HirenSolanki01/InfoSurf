@@ -36,13 +36,20 @@ const ImportLinkModal = ({ isOpen, onClose, onImport, importType, setImportType,
     onImport();
   };
 
+  const getLoadingText = () => {
+    if (importType === "website") return "Extracting Web Content...";
+    if (importType === "youtube") return "Retrieving Transcript & Metadata...";
+    if (importType === "github") return "Indexing Repository Files...";
+    return "Indexing Source...";
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <form onSubmit={handleSubmit}>
           <div className="modal-header">
             <h2 style={{ fontSize: "1.15rem", fontWeight: "700", color: "#fff" }}>Add Knowledge Source Link</h2>
-            <button type="button" className="icon-btn" onClick={onClose}>&times;</button>
+            <button type="button" className="icon-btn" onClick={onClose} disabled={loading}>&times;</button>
           </div>
           <div className="modal-body">
             <div className="form-group">
@@ -52,6 +59,7 @@ const ImportLinkModal = ({ isOpen, onClose, onImport, importType, setImportType,
                   type="button"
                   className={`import-tab ${importType === "website" ? "active" : ""}`}
                   onClick={() => setImportType("website")}
+                  disabled={loading}
                 >
                   <Globe size={14} className="mt-1" /> Web URL
                 </button>
@@ -59,6 +67,7 @@ const ImportLinkModal = ({ isOpen, onClose, onImport, importType, setImportType,
                   type="button"
                   className={`import-tab ${importType === "youtube" ? "active" : ""}`}
                   onClick={() => setImportType("youtube")}
+                  disabled={loading}
                 >
                   <YoutubeIcon size={14} className="mt-1" /> YouTube Video
                 </button>
@@ -66,6 +75,7 @@ const ImportLinkModal = ({ isOpen, onClose, onImport, importType, setImportType,
                   type="button"
                   className={`import-tab ${importType === "github" ? "active" : ""}`}
                   onClick={() => setImportType("github")}
+                  disabled={loading}
                 >
                   <GithubIcon size={14} className="mt-1" /> GitHub Repo
                 </button>
@@ -74,26 +84,37 @@ const ImportLinkModal = ({ isOpen, onClose, onImport, importType, setImportType,
 
             <div className="form-group">
               <label htmlFor="modal-url-input">
-                {importType === "website" ? "Website Article URL" : importType === "youtube" ? "YouTube Video URL" : "Public GitHub Repository URL"}
+                {importType === "website" ? "Website Article / Documentation URL" : importType === "youtube" ? "YouTube Video / Shorts URL" : "Public GitHub Repository URL"}
               </label>
               <input
                 id="modal-url-input"
-                type="url"
+                type="text"
                 required
+                disabled={loading}
                 placeholder={
                   importType === "website" 
-                    ? "https://example.com/article" 
+                    ? "https://example.com/docs or example.com" 
                     : importType === "youtube" 
-                    ? "https://www.youtube.com/watch?v=video_id" 
+                    ? "https://www.youtube.com/watch?v=video_id or shorts URL" 
                     : "https://github.com/owner/repository"
                 }
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
               />
             </div>
+            {importType === "website" && (
+              <p className="text-xs text-secondary">
+                InfoSurf will extract readable content and page titles from standard web pages or documentation sites.
+              </p>
+            )}
+            {importType === "youtube" && (
+              <p className="text-xs text-secondary">
+                Supports all YouTube video, shorts, and live URLs. Captions and metadata will be parsed automatically.
+              </p>
+            )}
             {importType === "github" && (
               <p className="text-xs text-secondary">
-                Public repositories: InfoSurf will automatically extract and index code files (.py, .js, .ts, etc.).
+                Public repositories: InfoSurf will automatically extract and index code files (.py, .js, .ts, .md, etc.).
               </p>
             )}
           </div>
@@ -101,8 +122,15 @@ const ImportLinkModal = ({ isOpen, onClose, onImport, importType, setImportType,
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? <RefreshCw className="animate-spin" size={16} /> : "Index Source"}
+            <button type="submit" className="btn btn-primary flex items-center gap-2" disabled={loading || !url.trim()}>
+              {loading ? (
+                <>
+                  <RefreshCw className="animate-spin" size={16} /> 
+                  <span>{getLoadingText()}</span>
+                </>
+              ) : (
+                "Index Source"
+              )}
             </button>
           </div>
         </form>
@@ -113,13 +141,25 @@ const ImportLinkModal = ({ isOpen, onClose, onImport, importType, setImportType,
 
 // Document Inspector Modal
 const DocumentInspectorModal = ({ doc, isOpen, onClose }) => {
+  const [copied, setCopied] = useState(false);
   if (!isOpen || !doc) return null;
+
+  const text = doc.content_text || "";
+  const charCount = text.length;
+  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+
+  const handleCopy = () => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content doc-inspector-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
+          <div className="flex items-center gap-2" style={{ minWidth: 0, flex: 1 }}>
             <FileText size={18} className="text-cyan-400 shrink-0" />
             <span style={{ fontSize: "1rem", fontWeight: "700", color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {doc.name}
@@ -127,14 +167,24 @@ const DocumentInspectorModal = ({ doc, isOpen, onClose }) => {
           </div>
           <button className="icon-btn" onClick={onClose}>&times;</button>
         </div>
-        <div className="modal-body" style={{ overflowY: "auto", maxHeight: "60vh" }}>
-          <div className="flex items-center gap-3 text-xs" style={{ fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>
-            <span>Type: {doc.source_type}</span>
-            <span>·</span>
-            <span>Status: {doc.status}</span>
-            <span>·</span>
-            <span>Created: {new Date(doc.created_at).toLocaleDateString()}</span>
+        <div className="modal-body" style={{ overflowY: "auto", maxHeight: "65vh" }}>
+          <div className="flex items-center justify-between" style={{ background: "rgba(255, 255, 255, 0.03)", padding: "8px 12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-subtle)" }}>
+            <div className="flex items-center gap-3 text-xs" style={{ fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>
+              <span style={{ color: "var(--accent-cyan)", textTransform: "uppercase", fontWeight: "600" }}>{doc.source_type}</span>
+              <span>·</span>
+              <span>Status: <strong style={{ color: doc.status === "active" ? "var(--accent-emerald)" : "var(--accent-amber)" }}>{doc.status}</strong></span>
+              <span>·</span>
+              <span>{charCount.toLocaleString()} chars ({wordCount.toLocaleString()} words)</span>
+            </div>
+
+            {text && (
+              <button className="icon-btn flex items-center gap-1 text-xs" onClick={handleCopy} title="Copy full text">
+                {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                <span>{copied ? "Copied" : "Copy"}</span>
+              </button>
+            )}
           </div>
+
           {doc.source_url && (
             <div style={{ fontSize: "0.82rem", wordBreak: "break-all" }}>
               <a href={doc.source_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-cyan-400">
@@ -142,12 +192,19 @@ const DocumentInspectorModal = ({ doc, isOpen, onClose }) => {
               </a>
             </div>
           )}
-          <div style={{ marginTop: "10px" }}>
-            <div style={{ fontSize: "0.75rem", fontFamily: "var(--font-mono)", color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>
-              Extracted Text Preview
+
+          <div>
+            <div className="flex items-center justify-between" style={{ marginBottom: "6px" }}>
+              <span style={{ fontSize: "0.75rem", fontFamily: "var(--font-mono)", color: "var(--text-muted)", textTransform: "uppercase" }}>
+                Extracted Text Preview
+              </span>
+              <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                {text.length > 5000 ? "Showing first 5,000 characters" : "Full document text"}
+              </span>
             </div>
-            <div style={{ background: "#07080B", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-sm)", padding: "14px", fontSize: "0.85rem", lineHeight: "1.6", color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>
-              {doc.content_text ? doc.content_text.slice(0, 3000) + (doc.content_text.length > 3000 ? "\n\n[... truncated for preview ...]" : "") : "No text content preview available."}
+            
+            <div style={{ background: "#07080B", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-sm)", padding: "14px", fontSize: "0.85rem", lineHeight: "1.6", color: "var(--text-secondary)", whiteSpace: "pre-wrap", maxHeight: "400px", overflowY: "auto", fontFamily: doc.source_type === "github" ? "var(--font-mono)" : "var(--font-sans)" }}>
+              {text ? (text.length > 5000 ? text.slice(0, 5000) + "\n\n[... truncated preview for display ...]" : text) : "No text content was parsed from this source."}
             </div>
           </div>
         </div>

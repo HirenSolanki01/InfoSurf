@@ -50,6 +50,7 @@ class DocumentResponse(BaseModel):
     name: str
     source_type: str
     source_url: Optional[str] = None
+    content_text: Optional[str] = None
     status: str
     workspace_id: int
     created_at: datetime

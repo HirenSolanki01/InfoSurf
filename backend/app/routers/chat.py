@@ -159,13 +159,17 @@ def add_link_source(
     
     try:
         if source_type == "website":
-            # Extract name from URL domain / path
-            name = url.replace("https://", "").replace("http://", "").split("/")[0] + " (Web)"
+            parsed_web = parse_web_url(url)
+            web_title = parsed_web["title"]
+            text_content = parsed_web["content"]
+            web_url = parsed_web["url"]
+            name = f"{web_title} (Web)"
             
             db_doc = Document(
                 name=name,
                 source_type="website",
-                source_url=url,
+                source_url=web_url,
+                content_text=text_content,
                 status="processing",
                 workspace_id=workspace_id
             )
@@ -173,28 +177,30 @@ def add_link_source(
             db.commit()
             db.refresh(db_doc)
             
-            text_content = parse_web_url(url)
-            db_doc.content_text = text_content
-            
             add_document_chunks(
                 workspace_id=workspace_id,
                 doc_id=db_doc.id,
                 doc_name=name,
                 content=text_content,
                 source_type="website",
-                source_url=url
+                source_url=web_url
             )
             db_doc.status = "active"
             db.commit()
             added_docs.append(db_doc)
             
         elif source_type == "youtube":
-            name = "YouTube Video Video ID: " + (url.split("v=")[-1][:11] if "v=" in url else "Transcript")
+            parsed_yt = parse_youtube_transcript(url)
+            yt_title = parsed_yt["title"]
+            text_content = parsed_yt["content"]
+            yt_url = parsed_yt["url"]
+            name = f"{yt_title} (YouTube)"
             
             db_doc = Document(
                 name=name,
                 source_type="youtube",
-                source_url=url,
+                source_url=yt_url,
+                content_text=text_content,
                 status="processing",
                 workspace_id=workspace_id
             )
@@ -202,27 +208,26 @@ def add_link_source(
             db.commit()
             db.refresh(db_doc)
             
-            text_content = parse_youtube_transcript(url)
-            db_doc.content_text = text_content
-            
             add_document_chunks(
                 workspace_id=workspace_id,
                 doc_id=db_doc.id,
                 doc_name=name,
                 content=text_content,
                 source_type="youtube",
-                source_url=url
+                source_url=yt_url
             )
             db_doc.status = "active"
             db.commit()
             added_docs.append(db_doc)
             
         elif source_type == "github":
-            # GitHub repo extraction returns multiple files
             repo_files = parse_github_repo(url)
             
-            # Extract simple repo name for display
-            repo_name = url.rstrip("/").split("/")[-1]
+            # Extract clean repo name for display
+            clean_url = url.strip().rstrip("/")
+            repo_name = clean_url.split("/")[-1]
+            if repo_name.endswith(".git"):
+                repo_name = repo_name[:-4]
             
             for file_obj in repo_files:
                 doc_name = f"{repo_name}/{file_obj['name']}"
@@ -232,6 +237,7 @@ def add_link_source(
                     name=doc_name,
                     source_type="github",
                     source_url=url,
+                    content_text=file_content,
                     status="processing",
                     workspace_id=workspace_id
                 )
@@ -239,7 +245,6 @@ def add_link_source(
                 db.commit()
                 db.refresh(db_doc)
                 
-                db_doc.content_text = file_content
                 add_document_chunks(
                     workspace_id=workspace_id,
                     doc_id=db_doc.id,
@@ -254,14 +259,19 @@ def add_link_source(
                 
         return added_docs
         
-    except Exception as e:
-        # Clean up any processing documents on failure
-        # In actual system, we mark them as failed
+    except ValueError as ve:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(ve)
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to process source link: {str(e)}"
         )
+
 
 @router.post("/{workspace_id}/query")
 def chat_query(
