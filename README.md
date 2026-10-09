@@ -115,12 +115,6 @@ The system can be evaluated using the following metrics:
 - Collaborative workspaces and knowledge sharing.
 - Advanced analytics and retrieval evaluation.
 
-## 🎓 Project Information
-
-**Project Name:** InfoSurf  
-**Domain:** Artificial Intelligence and Machine Learning  
-**Project Type:** Academic Project
-
 ## 📚 References
 
 - [Retrieval-Augmented Generation Research Paper](https://arxiv.org/abs/2005.11401)
